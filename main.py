@@ -1,5 +1,6 @@
 import logging
 import os
+import waitress
 
 from flask import Flask, jsonify, request
 
@@ -41,7 +42,8 @@ def handle_dialog(req, res):
                 "Не хочу.",
                 "Не буду.",
                 "Отстань!",
-            ]
+            ],
+            "elephant_bought": False,
         }
         res["response"]["text"] = "Привет! Купи слона!"
         res["response"]["buttons"] = get_suggests(user_id)
@@ -53,13 +55,30 @@ def handle_dialog(req, res):
             for i in ["ладно", "куплю", "покупаю", "хорошо"]
         ]
     ):
-        res["response"]["text"] = "Слона можно найти на Яндекс.Маркете!"
-        res["response"]["end_session"] = True
+        if not sessionStorage[user_id]["elephant_bought"]:
+            sessionStorage[user_id] = {
+                "suggests": [
+                    "Не хочу.",
+                    "Не буду.",
+                    "Отстань!",
+                ],
+                "elephant_bought": True,
+            }
+            res["response"]["text"] = "Слона можно найти на Яндекс.Маркете! Купи теперь кролика!"
+            res["response"]["buttons"] = get_suggests(user_id)
+        else:
+            res["response"]["text"] = "Кролика можно найти на Яндекс.Маркете!"
+            res["response"]["end_session"] = True
         return
 
-    res["response"]["text"] = (
-        f"Все говорят '{req['request']['original_utterance']}', а ты купи слона!"
-    )
+    if not sessionStorage[user_id]["elephant_bought"]:
+        res["response"]["text"] = (
+            f"Все говорят '{req['request']['original_utterance']}', а ты купи слона!"
+        )
+    else:
+        res["response"]["text"] = (
+            f"Все говорят '{req['request']['original_utterance']}', а ты купи кролика!"
+        )
     res["response"]["buttons"] = get_suggests(user_id)
 
 
@@ -72,17 +91,27 @@ def get_suggests(user_id):
     sessionStorage[user_id] = session
 
     if len(suggests) < 2:
-        suggests.append(
-            {
-                "title": "Ладно",
-                "url": "https://market.yandex.ru/search?text=слон",
-                "hide": True,
-            }
-        )
+        if not sessionStorage[user_id]["elephant_bought"]:
+            suggests.append(
+                {
+                    "title": "Ладно",
+                    "url": "https://market.yandex.ru/search?text=слон",
+                    "hide": True,
+                }
+            )
+        else:
+            suggests.append(
+                {
+                    "title": "Ладно",
+                    "url": "https://market.yandex.ru/search?text=кролик",
+                    "hide": True,
+                }
+            )
 
     return suggests
 
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    # app.run(host="0.0.0.0", port=port)
+    waitress.serve(app, host="0.0.0.0", port=port)
